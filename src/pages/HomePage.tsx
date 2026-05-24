@@ -105,6 +105,22 @@ export default function HomePage() {
         >
           PLAY WITH FRIENDS
         </button>
+
+        {/* Tertiary — Send Feedback */}
+        <button
+          onClick={() => navigate('/contact')}
+          style={{
+            background: 'none', color: S.textDim, fontFamily: S.fontBody,
+            fontSize: '0.85rem', padding: '8px 0',
+            border: 'none', cursor: 'pointer',
+            transition: S.transition, width: '100%',
+            textDecoration: 'underline', textUnderlineOffset: '3px',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = S.text)}
+          onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
+        >
+          Send Feedback
+        </button>
       </div>
 
       {/* How to Play */}

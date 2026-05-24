@@ -40,7 +40,7 @@ export interface RoundHistory {
   playerResult?: 'correct' | 'wrong' | 'timeout' | 'skipped';
 }
 
-export type GameStatus = 'waiting' | 'choosing' | 'countdown' | 'guessing' | 'result' | 'finished';
+export type GameStatus = 'waiting' | 'choosing' | 'countdown' | 'guessing' | 'result' | 'finished' | 'disconnected';
 export type GameMode = 'strangers' | 'friends' | 'single';
 
 export interface GameRoom {
@@ -55,6 +55,7 @@ export interface GameRoom {
   players: Record<string, PlayerState>;
   roundState: RoundState;
   history: RoundHistory[];
+  disconnectedPlayerName?: string | null;
 }
 
 export interface QueueEntry {

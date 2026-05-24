@@ -71,6 +71,11 @@ export default function GamePage() {
   const submittedRef         = useRef(false);
   // Prevents multiple countdown → guessing timeouts being scheduled
   const countdownScheduledRef = useRef(false);
+  // Always-fresh room reference for use inside setTimeout callbacks
+  const roomRef              = useRef(room);
+  roomRef.current = room;
+  // 30s club-choosing disconnect timeout (host only)
+  const chooseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isHost     = !!(uid && room && uid === room.hostId);
   const roundPhase = room?.roundState?.phase ?? null;
@@ -113,9 +118,14 @@ export default function GamePage() {
     }
   }, [isHost, roomId, room]);
 
-  // ── HOST: choosing → countdown → guessing ───────────────────────────────
+  // ── HOST: choosing → countdown → guessing (30s disconnect guard) ───────────
   useEffect(() => {
     if (!isHost || !roomId || !room || room.status !== 'choosing') {
+      // Leaving choosing phase — cancel any pending disconnect timer
+      if (chooseTimeoutRef.current !== null) {
+        clearTimeout(chooseTimeoutRef.current);
+        chooseTimeoutRef.current = null;
+      }
       countdownScheduledRef.current = false;
       return;
     }
@@ -123,7 +133,12 @@ export default function GamePage() {
 
     const entries = Object.entries(room.players);
     if (entries.length >= 2 && entries.every(([, p]) => p.chosenClubId != null)) {
+      // Both players chose — cancel disconnect timer and start countdown
       countdownScheduledRef.current = true;
+      if (chooseTimeoutRef.current !== null) {
+        clearTimeout(chooseTimeoutRef.current);
+        chooseTimeoutRef.current = null;
+      }
       const sorted = [...entries].sort(([a], [b]) => a === room.hostId ? -1 : b === room.hostId ? 1 : 0);
       const [, hp] = sorted[0];
       const [, gp] = sorted[1];
@@ -147,8 +162,36 @@ export default function GamePage() {
           'roundState.validAnswers':    null,
         });
       }, COUNTDOWN_MS);
+    } else {
+      // Not all players have chosen yet — start the 30s disconnect timer (once)
+      if (chooseTimeoutRef.current === null) {
+        chooseTimeoutRef.current = setTimeout(async () => {
+          chooseTimeoutRef.current = null;
+          const currentRoom = roomRef.current;
+          if (!currentRoom || currentRoom.status !== 'choosing') return;
+          // Find whoever still hasn't picked a club
+          const notChosen = Object.entries(currentRoom.players).find(([, p]) => !p.chosenClubId);
+          if (!notChosen) return; // Everyone chose in the last moment — safe to ignore
+          const [, slowPlayer] = notChosen;
+          try {
+            await updateDoc(doc(db, 'game_rooms', roomId), {
+              status: 'disconnected',
+              disconnectedPlayerName: slowPlayer.displayName,
+            });
+          } catch (err) {
+            console.error('Disconnect update failed:', err);
+          }
+        }, 30_000);
+      }
     }
   }, [isHost, roomId, room]);
+
+  // Cleanup choose timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (chooseTimeoutRef.current !== null) clearTimeout(chooseTimeoutRef.current);
+    };
+  }, []);
 
   // ── HOST: process first submission (guessing → second_chance | result) ────
   useEffect(() => {
@@ -405,6 +448,28 @@ export default function GamePage() {
   const opponent    = opponentUid ? room.players[opponentUid] : null;
   const totalRounds = room.maxRounds;
   const isLastRound = room.currentRound >= totalRounds;
+
+  // ── DISCONNECTED ─────────────────────────────────────────────────────────
+  if (room.status === 'disconnected') {
+    const disconnectedName = room.disconnectedPlayerName ?? 'A player';
+    return page(
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, textAlign: 'center', paddingTop: '2rem' }}>
+        <span style={{ fontSize: '3.5rem' }}>⚡</span>
+        <h2 style={{ fontFamily: S.fontHead, fontSize: '2rem', color: S.text }}>Player Disconnected</h2>
+        <p style={{ color: S.textDim, fontFamily: S.fontBody, lineHeight: 1.5 }}>
+          <strong style={{ color: S.text }}>{disconnectedName}</strong> didn't choose a club in time.
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          style={{ background: S.accent, color: '#000', fontFamily: S.fontHead, fontSize: '1rem', padding: '14px 40px', borderRadius: S.radius, border: 'none', cursor: 'pointer', boxShadow: `0 0 24px ${S.accentGlow}` }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          Return to Home
+        </button>
+      </div>
+    );
+  }
 
   // ── WAITING ──────────────────────────────────────────────────────────────
   if (room.status === 'waiting') {

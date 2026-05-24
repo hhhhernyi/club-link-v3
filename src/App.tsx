@@ -4,6 +4,7 @@ import SinglePlayerPage from './pages/SinglePlayerPage';
 import LobbyPage from './pages/LobbyPage';
 import MatchmakingPage from './pages/MatchmakingPage';
 import GamePage from './pages/GamePage';
+import ContactPage from './pages/ContactPage';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
 
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/lobby" element={<LobbyPage />} />
         <Route path="/matchmaking" element={<MatchmakingPage />} />
         <Route path="/game/:roomId" element={<GamePage />} />
+        <Route path="/contact" element={<ContactPage />} />
       </Routes>
     </BrowserRouter>
   );
