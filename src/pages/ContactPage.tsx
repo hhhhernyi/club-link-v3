@@ -28,6 +28,10 @@ export default function ContactPage() {
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
+    if (!WEB3FORMS_KEY) {
+      setError('Contact form not configured (missing API key).');
+      return;
+    }
     setSending(true);
     setError(null);
     try {
@@ -38,14 +42,15 @@ export default function ContactPage() {
           access_key: WEB3FORMS_KEY,
           subject:    subject.trim() || 'Club Link Feedback',
           message:    message.trim(),
-          from_name:  'Club Link User',
+          name:       'Club Link User',
+          botcheck:   false,
         }),
       });
       const data = await res.json();
       if (data.success) {
         setSent(true);
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(data.message ?? 'Something went wrong. Please try again.');
       }
     } catch {
       setError('Failed to send. Check your connection and try again.');

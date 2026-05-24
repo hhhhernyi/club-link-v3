@@ -421,16 +421,21 @@ export default function GamePage() {
   }, [isHost, roomId, room]);
 
   // ── Layout helper ────────────────────────────────────────────────────────
+  // Hide back button in multiplayer once the game is underway (choosing or beyond)
+  const showBack = !room || room.mode === 'single' || room.status === 'waiting';
+
   const page = (content: React.ReactNode) => (
     <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.5rem', animation: 'fadeIn 0.3s ease' }}>
-      <div style={{ width: '100%', maxWidth: 500, marginBottom: 20 }}>
-        <button onClick={() => navigate('/')}
-          style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}
-          onMouseEnter={e => (e.currentTarget.style.color = S.text)}
-          onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
-        >
-          ← Back
-        </button>
+      <div style={{ width: '100%', maxWidth: 500, marginBottom: 20, minHeight: 24 }}>
+        {showBack && (
+          <button onClick={() => navigate('/')}
+            style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}
+            onMouseEnter={e => (e.currentTarget.style.color = S.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
+          >
+            ← Back
+          </button>
+        )}
       </div>
       <div style={{ width: '100%', maxWidth: 500 }}>{content}</div>
     </div>
@@ -518,13 +523,15 @@ export default function GamePage() {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: 500, margin: '0 auto', padding: '1.5rem', gap: 16, background: S.bg, overflow: 'hidden' }}>
           <div>
-            <button onClick={() => navigate('/')}
-              style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0, marginBottom: 16 }}
-              onMouseEnter={e => (e.currentTarget.style.color = S.text)}
-              onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
-            >
-              ← Back
-            </button>
+            {showBack && (
+              <button onClick={() => navigate('/')}
+                style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0, marginBottom: 16 }}
+                onMouseEnter={e => (e.currentTarget.style.color = S.text)}
+                onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
+              >
+                ← Back
+              </button>
+            )}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8 }}>
               <div>
                 <h1 style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.text }}>
