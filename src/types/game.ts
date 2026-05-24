@@ -19,11 +19,16 @@ export interface ClubInfo {
 export interface RoundState {
   clubA: ClubInfo | null;
   clubB: ClubInfo | null;
-  phase: 'choosing' | 'countdown' | 'guessing' | 'second_chance' | 'result';
-  phaseEndsAt: Timestamp | null;
+  phase: 'guessing' | 'second_chance' | 'result' | null;
   firstSubmitter: string | null;
+  firstGuess: string | null;
+  firstResult: 'correct' | 'wrong' | 'timeout' | null;
+  secondSubmitter: string | null;
+  secondGuess: string | null;
+  secondResult: 'correct' | 'wrong' | 'timeout' | null;
   roundWinner: string | null;
   correctAnswer: string | null;
+  validAnswers: string[] | null;
 }
 
 export interface RoundHistory {

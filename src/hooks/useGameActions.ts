@@ -37,11 +37,16 @@ export function useGameActions() {
       roundState: {
         clubA: null,
         clubB: null,
-        phase: 'choosing',
-        phaseEndsAt: null,
+        phase: null,
         firstSubmitter: null,
+        firstGuess: null,
+        firstResult: null,
+        secondSubmitter: null,
+        secondGuess: null,
+        secondResult: null,
         roundWinner: null,
         correctAnswer: null,
+        validAnswers: null,
       },
       history: [],
     };
