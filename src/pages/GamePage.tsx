@@ -63,6 +63,7 @@ export default function GamePage() {
   const [showCountdown, setShowCountdown] = useState(false);
   const [results,       setResults]       = useState<('correct' | 'wrong' | null)[]>([]);
 
+
   // Prevents double-processing of the same submission
   const processingRef        = useRef(false);
   // Tracks which round we've already recorded into `results`
@@ -80,11 +81,21 @@ export default function GamePage() {
   const isHost     = !!(uid && room && uid === room.hostId);
   const roundPhase = room?.roundState?.phase ?? null;
 
-  const timer = useTimer({ duration: TIMER_SECONDS, onComplete: () => handleTimeout() });
+  const timer       = useTimer({ duration: TIMER_SECONDS, onComplete: () => handleTimeout() });
+  const chooseTimer = useTimer({ duration: 30 });
 
   // ── Load clubs ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (room?.status === 'choosing') getAllClubs();
+  }, [room?.status]);
+
+  // ── Choosing-phase countdown (multiplayer only) ───────────────────────────
+  useEffect(() => {
+    if (room?.status === 'choosing' && room?.mode !== 'single') {
+      chooseTimer.restart(30);
+    } else {
+      chooseTimer.stop();
+    }
   }, [room?.status]);
 
   // ── Reset submittedRef when phase changes ────────────────────────────────
@@ -514,12 +525,22 @@ export default function GamePage() {
             >
               ← Back
             </button>
-            <h1 style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.text }}>
-              Round {room.currentRound} — Pick your club
-            </h1>
-            <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', marginTop: 4 }}>
-              Choose a club you know well.
-            </p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8 }}>
+              <div>
+                <h1 style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.text }}>
+                  Round {room.currentRound} — Pick your club
+                </h1>
+                <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', marginTop: 4 }}>
+                  Choose a club you know well.
+                </p>
+              </div>
+              {room.mode !== 'single' && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 16 }}>
+                  <CircularTimer secondsLeft={chooseTimer.secondsLeft} fraction={chooseTimer.fraction} totalSeconds={30} />
+                  <span style={{ fontFamily: S.fontBody, fontSize: '0.72rem', color: S.textDim }}>to pick</span>
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <ClubSelector clubs={clubs} onSelect={handleClubSelect} onSearch={searchClubs} loading={clubsLoading} />
@@ -529,6 +550,9 @@ export default function GamePage() {
     }
     return page(
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', paddingTop: '3rem' }}>
+        {room.mode !== 'single' && (
+          <CircularTimer secondsLeft={chooseTimer.secondsLeft} fraction={chooseTimer.fraction} totalSeconds={30} />
+        )}
         <Spinner />
         <p style={{ color: S.accent, fontFamily: S.fontHead, fontSize: '1.2rem' }}>
           You picked {myPlayer?.chosenClubName}

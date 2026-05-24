@@ -2,30 +2,56 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const S = {
-  bg:       'var(--bg)',
-  surface:  'var(--surface)',
-  border:   'var(--border)',
-  accent:   'var(--accent)',
+  bg:         'var(--bg)',
+  surface:    'var(--surface)',
+  border:     'var(--border)',
+  accent:     'var(--accent)',
   accentGlow: 'var(--accent-glow)',
-  danger:   'var(--danger)',
-  text:     'var(--text)',
-  textDim:  'var(--text-dim)',
-  fontHead: "'Dela Gothic One', system-ui, sans-serif",
-  fontBody: "'DM Sans', system-ui, sans-serif",
-  radius:   '12px',
-  radiusLg: '20px',
+  danger:     'var(--danger)',
+  text:       'var(--text)',
+  textDim:    'var(--text-dim)',
+  fontHead:   "'Dela Gothic One', system-ui, sans-serif",
+  fontBody:   "'DM Sans', system-ui, sans-serif",
+  radius:     '12px',
+  radiusLg:   '20px',
 };
+
+const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_KEY as string;
 
 export default function ContactPage() {
   const navigate = useNavigate();
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
+  const [subject,  setSubject]  = useState('');
+  const [message,  setMessage]  = useState('');
+  const [sending,  setSending]  = useState(false);
+  const [sent,     setSent]     = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
 
-  const handleSend = () => {
-    if (!message.trim()) return;
-    const mailtoSubject = encodeURIComponent(subject.trim() || 'Club Link Feedback');
-    const mailtoBody    = encodeURIComponent(message.trim());
-    window.location.href = `mailto:hyileenet@gmail.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+  const handleSend = async () => {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_KEY,
+          subject:    subject.trim() || 'Club Link Feedback',
+          message:    message.trim(),
+          from_name:  'Club Link User',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSent(true);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } catch {
+      setError('Failed to send. Check your connection and try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -42,6 +68,39 @@ export default function ContactPage() {
     transition: '150ms',
   };
 
+  // ── Success screen ────────────────────────────────────────────────────────
+  if (sent) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', minHeight: '100vh', background: S.bg,
+        padding: '2rem 1.5rem', gap: 24, textAlign: 'center',
+        animation: 'fadeIn 0.3s ease',
+      }}>
+        <span style={{ fontSize: '3.5rem' }}>✅</span>
+        <h2 style={{ fontFamily: S.fontHead, fontSize: '2rem', color: S.text }}>
+          Message Sent!
+        </h2>
+        <p style={{ fontFamily: S.fontBody, fontSize: '0.95rem', color: S.textDim, maxWidth: 300, lineHeight: 1.5 }}>
+          Thanks for the feedback — I'll read it and get back to you if needed.
+        </p>
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            background: S.accent, color: '#000', fontFamily: S.fontHead,
+            fontSize: '1rem', padding: '14px 40px', borderRadius: S.radius,
+            border: 'none', cursor: 'pointer', boxShadow: `0 0 24px ${S.accentGlow}`,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          Back to Home
+        </button>
+      </div>
+    );
+  }
+
+  // ── Form ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -100,28 +159,27 @@ export default function ContactPage() {
             />
           </div>
 
+          {error && (
+            <p style={{ fontFamily: S.fontBody, fontSize: '0.85rem', color: S.danger }}>{error}</p>
+          )}
+
           <button
             onClick={handleSend}
-            disabled={!message.trim()}
+            disabled={!message.trim() || sending}
             style={{
-              background: message.trim() ? S.accent : S.border,
-              color: message.trim() ? '#000' : S.textDim,
+              background: message.trim() && !sending ? S.accent : S.border,
+              color: message.trim() && !sending ? '#000' : S.textDim,
               fontFamily: S.fontHead, fontSize: '1rem',
               padding: '14px 0', borderRadius: S.radius,
-              border: 'none', cursor: message.trim() ? 'pointer' : 'not-allowed',
-              boxShadow: message.trim() ? `0 0 24px ${S.accentGlow}` : 'none',
-              transition: '200ms',
-              width: '100%',
+              border: 'none', cursor: message.trim() && !sending ? 'pointer' : 'not-allowed',
+              boxShadow: message.trim() && !sending ? `0 0 24px ${S.accentGlow}` : 'none',
+              transition: '200ms', width: '100%',
             }}
-            onMouseEnter={e => { if (message.trim()) e.currentTarget.style.opacity = '0.85'; }}
+            onMouseEnter={e => { if (message.trim() && !sending) e.currentTarget.style.opacity = '0.85'; }}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >
-            Send via Email
+            {sending ? 'Sending…' : 'Send Message'}
           </button>
-
-          <p style={{ fontFamily: S.fontBody, fontSize: '0.78rem', color: S.textDim, textAlign: 'center', lineHeight: 1.4 }}>
-            This opens your email client with the message pre-filled.
-          </p>
         </div>
       </div>
     </div>
