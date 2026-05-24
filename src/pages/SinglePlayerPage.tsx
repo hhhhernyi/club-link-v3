@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { doc, setDoc, increment } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { useClubSearch } from '../hooks/useClubSearch';
 import { useTimer } from '../hooks/useTimer';
 import { useGameActions } from '../hooks/useGameActions';
@@ -203,8 +205,7 @@ export default function SinglePlayerPage() {
 
   const handleNextRound = useCallback(() => {
     if (currentRound >= TOTAL_ROUNDS) {
-      const gp = parseInt(localStorage.getItem('cl_games') || '0') + 1;
-      localStorage.setItem('cl_games', gp.toString());
+      setDoc(doc(db, 'app_stats', 'global'), { gamesPlayed: increment(1) }, { merge: true }).catch(console.error);
       setPhase('gameover');
       return;
     }
