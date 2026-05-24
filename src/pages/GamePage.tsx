@@ -77,6 +77,8 @@ export default function GamePage() {
   roomRef.current = room;
   // 30s club-choosing disconnect timeout (host only)
   const chooseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Timestamp when this client entered the current active game phase (for null-lastSeen grace period)
+  const activePhaseEntryRef = useRef<number | null>(null);
 
   const isHost     = !!(uid && room && uid === room.hostId);
   const roundPhase = room?.roundState?.phase ?? null;
@@ -204,43 +206,70 @@ export default function GamePage() {
     };
   }, []);
 
-  // ── Presence heartbeat (multiplayer only) ────────────────────────────────
-  // Writes lastSeen every 15s so the opponent can detect if we go offline.
+  const ACTIVE_STATUSES = new Set(['choosing', 'countdown', 'guessing']);
+  const STALE_MS = 15_000; // consider opponent offline after 15s without heartbeat
+
+  // ── Track when we enter/leave active game phases ──────────────────────────
+  useEffect(() => {
+    if (!room || room.mode === 'single') return;
+    if (ACTIVE_STATUSES.has(room.status)) {
+      activePhaseEntryRef.current = Date.now();
+    } else {
+      activePhaseEntryRef.current = null;
+    }
+  }, [room?.status]);
+
+  // ── Presence heartbeat: write immediately on phase entry + every 5s ───────
+  useEffect(() => {
+    if (!roomId || !uid || !room || room.mode === 'single') return;
+    if (!ACTIVE_STATUSES.has(room.status)) return;
+    // Immediate write when entering this phase
+    updateDoc(doc(db, 'game_rooms', roomId), {
+      [`players.${uid}.lastSeen`]: serverTimestamp(),
+    }).catch(() => {});
+  }, [room?.status, roomId, uid]);
+
   useEffect(() => {
     if (!roomId || !uid) return;
-    const activeStatuses = new Set(['choosing', 'countdown', 'guessing']);
-    const write = () => {
+    const id = setInterval(() => {
       const r = roomRef.current;
-      if (!r || r.mode === 'single' || !activeStatuses.has(r.status)) return;
+      if (!r || r.mode === 'single' || !ACTIVE_STATUSES.has(r.status)) return;
       updateDoc(doc(db, 'game_rooms', roomId), {
         [`players.${uid}.lastSeen`]: serverTimestamp(),
       }).catch(() => {});
-    };
-    write();
-    const id = setInterval(write, 15_000);
+    }, 5_000);
     return () => clearInterval(id);
   }, [roomId, uid]);
 
-  // ── Stale-opponent detection (multiplayer only) ───────────────────────────
-  // Both players check every 10s; whichever detects the stale heartbeat first wins.
+  // ── Stale-opponent detection: both players check every 3s ─────────────────
+  // Handles both: stale heartbeat AND never-received heartbeat (player left instantly).
   useEffect(() => {
     if (!roomId || !uid) return;
-    const activeStatuses = new Set(['choosing', 'countdown', 'guessing']);
     const check = async () => {
       const r = roomRef.current;
-      if (!r || r.mode === 'single' || !activeStatuses.has(r.status)) return;
+      if (!r || r.mode === 'single' || !ACTIVE_STATUSES.has(r.status)) return;
       const opponentUid = Object.keys(r.players).find(k => k !== uid);
       if (!opponentUid) return;
+
+      const now = Date.now();
       const lastSeen = r.players[opponentUid]?.lastSeen;
-      if (!lastSeen?.toMillis) return; // no heartbeat yet — too early to judge
-      if (Date.now() - lastSeen.toMillis() > 30_000) {
+      let isStale = false;
+
+      if (lastSeen?.toMillis) {
+        isStale = now - lastSeen.toMillis() > STALE_MS;
+      } else if (activePhaseEntryRef.current !== null) {
+        // No heartbeat at all — stale if active phase started > (STALE_MS + 5s grace) ago
+        isStale = now - activePhaseEntryRef.current > STALE_MS + 5_000;
+      }
+
+      if (isStale) {
         await updateDoc(doc(db, 'game_rooms', roomId), {
           status: 'disconnected',
           disconnectedPlayerName: r.players[opponentUid].displayName,
         }).catch(() => {});
       }
     };
-    const id = setInterval(check, 10_000);
+    const id = setInterval(check, 3_000);
     return () => clearInterval(id);
   }, [roomId, uid]);
 
