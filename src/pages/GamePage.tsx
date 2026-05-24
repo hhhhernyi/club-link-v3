@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -340,6 +340,7 @@ export default function GamePage() {
     if (!isHost || !roomId || !room) return;
     if (room.currentRound >= room.maxRounds) {
       await updateDoc(doc(db, 'game_rooms', roomId), { status: 'finished' });
+      setDoc(doc(db, 'app_stats', 'global'), { gamesPlayed: increment(1) }, { merge: true }).catch(console.error);
     } else {
       const resets: Record<string, unknown> = {
         currentRound: room.currentRound + 1,
