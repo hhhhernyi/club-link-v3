@@ -26,7 +26,7 @@ interface RoundResultProps {
   validAnswers: string[];
   clubA: ClubInfo | null;
   clubB: ClubInfo | null;
-  onContinue: () => void;
+  onContinue?: () => void;
 }
 
 export default function RoundResult({ result, guess, validAnswers, clubA, clubB, onContinue }: RoundResultProps) {
@@ -83,18 +83,20 @@ export default function RoundResult({ result, guess, validAnswers, clubA, clubB,
         </div>
       )}
 
-      <button
-        onClick={onContinue}
-        style={{
-          background: S.accent, color: '#000', fontFamily: S.fontHead,
-          fontSize: '1rem', padding: '14px 48px', borderRadius: S.radius,
-          border: 'none', cursor: 'pointer', boxShadow: `0 0 24px ${S.accentGlow}`,
-        }}
-        onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-      >
-        Next Round
-      </button>
+      {onContinue && (
+        <button
+          onClick={onContinue}
+          style={{
+            background: S.accent, color: '#000', fontFamily: S.fontHead,
+            fontSize: '1rem', padding: '14px 48px', borderRadius: S.radius,
+            border: 'none', cursor: 'pointer', boxShadow: `0 0 24px ${S.accentGlow}`,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          Next Round
+        </button>
+      )}
     </div>
   );
 }

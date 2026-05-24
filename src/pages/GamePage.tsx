@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { useGameRoom } from '../hooks/useGameRoom';
 import { useGameActions } from '../hooks/useGameActions';
@@ -16,55 +18,127 @@ import RoomCodeDisplay from '../components/RoomCodeDisplay';
 import ScoreBoard from '../components/ScoreBoard';
 
 const TIMER_SECONDS = 10;
+const COUNTDOWN_MS  = 3800; // 3-count + buffer before guessing starts
 
 const S = {
-  bg:       'var(--bg)',
-  surface:  'var(--surface)',
-  surface2: 'var(--surface2)',
-  border:   'var(--border)',
-  accent:   'var(--accent)',
-  accentBg: 'var(--accent-bg)',
+  bg:         'var(--bg)',
+  surface:    'var(--surface)',
+  surface2:   'var(--surface2)',
+  border:     'var(--border)',
+  accent:     'var(--accent)',
+  accentBg:   'var(--accent-bg)',
   accentGlow: 'var(--accent-glow)',
-  danger:   'var(--danger)',
-  text:     'var(--text)',
-  textDim:  'var(--text-dim)',
-  fontHead: "'Dela Gothic One', system-ui, sans-serif",
-  fontBody: "'DM Sans', system-ui, sans-serif",
-  radius:   '12px',
-  radiusLg: '16px',
+  danger:     'var(--danger)',
+  text:       'var(--text)',
+  textDim:    'var(--text-dim)',
+  fontHead:   "'Dela Gothic One', system-ui, sans-serif",
+  fontBody:   "'DM Sans', system-ui, sans-serif",
+  radius:     '12px',
   transition: '200ms cubic-bezier(0.4, 0, 0.2, 1)',
 };
 
+function Spinner() {
+  return (
+    <svg viewBox="0 0 48 48" style={{ width: 48, height: 48 }}>
+      <circle cx="24" cy="24" r="20" fill="none" stroke={S.border} strokeWidth="3" />
+      <circle cx="24" cy="24" r="20" fill="none" stroke={S.accent} strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray={`${2 * Math.PI * 20 * 0.25} ${2 * Math.PI * 20 * 0.75}`}
+        style={{ transformOrigin: '24px 24px', animation: 'spin 1s linear infinite' }} />
+    </svg>
+  );
+}
+
 export default function GamePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const navigate = useNavigate();
-  const { uid } = useAuth();
+  const navigate   = useNavigate();
+  const { uid }    = useAuth();
   const { room, loading: roomLoading } = useGameRoom(roomId || null);
   const { setReady, chooseClub, submitGuess, getValidPlayers } = useGameActions();
   const { clubs, loading: clubsLoading, searchClubs, getAllClubs } = useClubSearch();
 
-  const [validAnswers, setValidAnswers] = useState<string[]>([]);
-  const [lastGuess, setLastGuess] = useState<string | null>(null);
-  const [localResult, setLocalResult] = useState<'correct' | 'wrong' | 'timeout' | 'skipped' | null>(null);
+  const [validAnswers,  setValidAnswers]  = useState<string[]>([]);
+  const [lastGuess,     setLastGuess]     = useState<string | null>(null);
+  const [localResult,   setLocalResult]   = useState<'correct' | 'wrong' | 'timeout' | 'skipped' | null>(null);
   const [showCountdown, setShowCountdown] = useState(false);
-  const [results, setResults] = useState<('correct' | 'wrong' | 'timeout' | 'skipped' | null)[]>([]);
+  const [results,       setResults]       = useState<('correct' | 'wrong' | 'timeout' | 'skipped' | null)[]>([]);
+
+  const isHost = !!(uid && room && uid === room.hostId);
 
   const timer = useTimer({ duration: TIMER_SECONDS, onComplete: () => handleTimeout() });
 
+  // ── Load clubs when entering choosing phase ──────────────────────────────
   useEffect(() => {
-    if (room?.status === 'choosing' || room?.roundState?.phase === 'choosing') getAllClubs();
-  }, [room?.status, room?.roundState?.phase, getAllClubs]);
+    if (room?.status === 'choosing') getAllClubs();
+  }, [room?.status, getAllClubs]);
 
+  // ── HOST ORCHESTRATION ───────────────────────────────────────────────────
+  // Transition: waiting → choosing (all players ready)
   useEffect(() => {
-    if (!room) return;
-    if (room.status === 'countdown' || room.roundState?.phase === 'countdown') setShowCountdown(true);
-    if (room.status === 'guessing' || room.roundState?.phase === 'guessing') {
-      setShowCountdown(false);
+    if (!isHost || !roomId || !room || room.status !== 'waiting') return;
+    const players = Object.values(room.players);
+    if (players.length >= 2 && players.every(p => p.ready)) {
+      // Reset all player choices and advance
+      const resets: Record<string, unknown> = {};
+      Object.keys(room.players).forEach(pUid => {
+        resets[`players.${pUid}.chosenClubId`]   = null;
+        resets[`players.${pUid}.chosenClubName`] = null;
+        resets[`players.${pUid}.hasSubmitted`]   = false;
+        resets[`players.${pUid}.currentGuess`]   = null;
+      });
+      updateDoc(doc(db, 'game_rooms', roomId), { status: 'choosing', ...resets });
+    }
+  }, [isHost, roomId, room]);
+
+  // Transition: choosing → countdown (all players chose a club)
+  useEffect(() => {
+    if (!isHost || !roomId || !room || room.status !== 'choosing') return;
+    const entries = Object.entries(room.players);
+    if (entries.length >= 2 && entries.every(([, p]) => p.chosenClubId != null)) {
+      // Host = clubA, other player = clubB
+      const sortedEntries = [...entries].sort(([a], [b]) =>
+        a === room.hostId ? -1 : b === room.hostId ? 1 : 0
+      );
+      const [, hostPlayer]  = sortedEntries[0];
+      const [, guestPlayer] = sortedEntries[1];
+
+      updateDoc(doc(db, 'game_rooms', roomId), {
+        status: 'countdown',
+        'roundState.clubA': { id: hostPlayer.chosenClubId,  name: hostPlayer.chosenClubName,  logo_url: null },
+        'roundState.clubB': { id: guestPlayer.chosenClubId, name: guestPlayer.chosenClubName, logo_url: null },
+      });
+
+      // After the visual countdown finishes, move to guessing
+      setTimeout(() => {
+        updateDoc(doc(db, 'game_rooms', roomId), { status: 'guessing' });
+      }, COUNTDOWN_MS);
+    }
+  }, [isHost, roomId, room]);
+
+  // Start/stop timer when guessing begins
+  useEffect(() => {
+    if (room?.status === 'guessing' && !showCountdown) {
       timer.reset(TIMER_SECONDS);
       timer.start();
     }
-  }, [room?.status, room?.roundState?.phase]);
+  }, [room?.status, showCountdown]);
 
+  // Drive the countdown overlay
+  useEffect(() => {
+    if (room?.status === 'countdown') setShowCountdown(true);
+    if (room?.status === 'guessing')  setShowCountdown(false);
+  }, [room?.status]);
+
+  // Auto-dismiss result screen for guest when host advances to next round
+  useEffect(() => {
+    if (room?.status === 'choosing' && localResult !== null && !isHost) {
+      setLocalResult(null);
+      setLastGuess(null);
+      setValidAnswers([]);
+    }
+  }, [room?.status, isHost]);
+
+  // ── PLAYER ACTIONS ───────────────────────────────────────────────────────
   const handleReady = useCallback(() => {
     if (!roomId || !uid) return;
     setReady(roomId, uid, true);
@@ -81,10 +155,18 @@ export default function GamePage() {
     setLastGuess(guess);
     try {
       const result = await submitGuess(roomId, uid, guess, room.roundState.clubA.id, room.roundState.clubB.id);
-      setLocalResult(result.valid ? 'correct' : 'wrong');
+      const isCorrect = result.valid;
+      setLocalResult(isCorrect ? 'correct' : 'wrong');
+      // Update score in Firestore
+      if (isCorrect) {
+        const myPlayer = room.players[uid];
+        await updateDoc(doc(db, 'game_rooms', roomId), {
+          [`players.${uid}.score`]: (myPlayer?.score ?? 0) + 1,
+        });
+      }
       const players = await getValidPlayers(room.roundState.clubA.id, room.roundState.clubB.id);
       setValidAnswers(players.map(p => p.name));
-    } catch (err) { console.error('Submit error:', err); }
+    } catch (err) { console.error('handleGuess error:', err); }
   }, [roomId, uid, room, timer, submitGuess, getValidPlayers]);
 
   const handleTimeout = useCallback(async () => {
@@ -108,17 +190,55 @@ export default function GamePage() {
     } catch (err) { console.error(err); }
   }, [room, timer, getValidPlayers]);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // HOST: advance round or finish game
+  const handleContinue = useCallback(async () => {
+    if (!localResult) return;
+    setResults(prev => [...prev, localResult]);
+    setLocalResult(null);
+    setLastGuess(null);
+    setValidAnswers([]);
+
+    if (!isHost || !roomId || !room) return;
+
+    if (room.currentRound >= room.maxRounds) {
+      await updateDoc(doc(db, 'game_rooms', roomId), { status: 'finished' });
+    } else {
+      const resets: Record<string, unknown> = {};
+      Object.keys(room.players).forEach(pUid => {
+        resets[`players.${pUid}.chosenClubId`]   = null;
+        resets[`players.${pUid}.chosenClubName`] = null;
+        resets[`players.${pUid}.hasSubmitted`]   = false;
+        resets[`players.${pUid}.currentGuess`]   = null;
+      });
+      await updateDoc(doc(db, 'game_rooms', roomId), {
+        currentRound: room.currentRound + 1,
+        status: 'choosing',
+        ...resets,
+      });
+    }
+  }, [isHost, roomId, room, localResult]);
+
+  // ── LAYOUT HELPERS ───────────────────────────────────────────────────────
+  const page = (content: React.ReactNode) => (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.5rem', animation: 'fadeIn 0.3s ease' }}>
+      <div style={{ width: '100%', maxWidth: 500, marginBottom: 20 }}>
+        <button onClick={() => navigate('/')}
+          style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}
+          onMouseEnter={e => (e.currentTarget.style.color = S.text)}
+          onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
+        >
+          ← Back
+        </button>
+      </div>
+      <div style={{ width: '100%', maxWidth: 500 }}>{content}</div>
+    </div>
+  );
+
+  // ── LOADING ──────────────────────────────────────────────────────────────
   if (roomLoading) {
     return (
       <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <svg viewBox="0 0 48 48" style={{ width: 48, height: 48 }}>
-          <circle cx="24" cy="24" r="20" fill="none" stroke={S.border} strokeWidth="3" />
-          <circle cx="24" cy="24" r="20" fill="none" stroke={S.accent} strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={`${2 * Math.PI * 20 * 0.25} ${2 * Math.PI * 20 * 0.75}`}
-            style={{ transformOrigin: '24px 24px', animation: 'spin 1s linear infinite' }} />
-        </svg>
+        <Spinner />
         <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem' }}>Loading game…</p>
       </div>
     );
@@ -135,33 +255,17 @@ export default function GamePage() {
     );
   }
 
-  const playerKeys = Object.keys(room.players);
-  const myPlayer = uid ? room.players[uid] : null;
+  const playerKeys  = Object.keys(room.players);
+  const myPlayer    = uid ? room.players[uid] : null;
   const opponentUid = playerKeys.find(k => k !== uid);
-  const opponent = opponentUid ? room.players[opponentUid] : null;
+  const opponent    = opponentUid ? room.players[opponentUid] : null;
   const totalRounds = room.maxRounds;
 
-  const page = (content: React.ReactNode) => (
-    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.5rem', animation: 'fadeIn 0.3s ease' }}>
-      <div style={{ width: '100%', maxWidth: 500, marginBottom: 24 }}>
-        <button
-          onClick={() => navigate('/')}
-          style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0 }}
-          onMouseEnter={e => (e.currentTarget.style.color = S.text)}
-          onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
-        >
-          ← Back
-        </button>
-      </div>
-      <div style={{ width: '100%', maxWidth: 500 }}>{content}</div>
-    </div>
-  );
-
-  // ── WAITING ────────────────────────────────────────────────────────────────
+  // ── WAITING ──────────────────────────────────────────────────────────────
   if (room.status === 'waiting') {
     return page(
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, textAlign: 'center' }}>
-        <h2 style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.text }}>Waiting for players…</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, textAlign: 'center' }}>
+        <h2 style={{ fontFamily: S.fontHead, fontSize: '2rem', color: S.text }}>Waiting for players…</h2>
 
         {room.roomCode && <RoomCodeDisplay code={room.roomCode} />}
 
@@ -170,13 +274,8 @@ export default function GamePage() {
         </p>
 
         {myPlayer && !myPlayer.ready && playerKeys.length >= 2 && (
-          <button
-            onClick={handleReady}
-            style={{
-              background: S.accent, color: '#000', fontFamily: S.fontHead,
-              fontSize: '1.1rem', padding: '14px 40px', borderRadius: S.radius,
-              border: 'none', cursor: 'pointer', boxShadow: `0 0 24px ${S.accentGlow}`,
-            }}
+          <button onClick={handleReady}
+            style={{ background: S.accent, color: '#000', fontFamily: S.fontHead, fontSize: '1.1rem', padding: '14px 48px', borderRadius: S.radius, border: 'none', cursor: 'pointer', boxShadow: `0 0 24px ${S.accentGlow}` }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >
@@ -185,55 +284,61 @@ export default function GamePage() {
         )}
 
         {myPlayer?.ready && (
-          <p style={{ color: S.accent, fontFamily: S.fontBody, fontSize: '0.9rem' }}>
-            Waiting for opponent to ready up…
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <Spinner />
+            <p style={{ color: S.accent, fontFamily: S.fontBody, fontSize: '0.9rem' }}>
+              Waiting for opponent to ready up…
+            </p>
+          </div>
         )}
       </div>
     );
   }
 
-  // ── CHOOSING ───────────────────────────────────────────────────────────────
-  if ((room.status === 'choosing' || room.roundState?.phase === 'choosing') && myPlayer && !myPlayer.chosenClubId) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: 500, margin: '0 auto', padding: '1.5rem', gap: 16, background: S.bg, overflow: 'hidden' }}>
-        <div>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0, marginBottom: 16 }}
-            onMouseEnter={e => (e.currentTarget.style.color = S.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
-          >
-            ← Back
-          </button>
-          <h1 style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.text }}>
-            Round {room.currentRound} — Pick your club
-          </h1>
-          <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', marginTop: 4 }}>
-            Choose a club you know well.
-          </p>
+  // ── CHOOSING ─────────────────────────────────────────────────────────────
+  if (room.status === 'choosing') {
+    // This player hasn't chosen yet
+    if (myPlayer && !myPlayer.chosenClubId) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: 500, margin: '0 auto', padding: '1.5rem', gap: 16, background: S.bg, overflow: 'hidden' }}>
+          <div>
+            <button onClick={() => navigate('/')}
+              style={{ background: 'none', border: 'none', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', cursor: 'pointer', padding: 0, marginBottom: 16 }}
+              onMouseEnter={e => (e.currentTarget.style.color = S.text)}
+              onMouseLeave={e => (e.currentTarget.style.color = S.textDim)}
+            >
+              ← Back
+            </button>
+            <h1 style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.text }}>
+              Round {room.currentRound} — Pick your club
+            </h1>
+            <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', marginTop: 4 }}>
+              Choose a club you know well.
+            </p>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <ClubSelector clubs={clubs} onSelect={handleClubSelect} onSearch={searchClubs} loading={clubsLoading} />
+          </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <ClubSelector clubs={clubs} onSelect={handleClubSelect} onSearch={searchClubs} loading={clubsLoading} />
-        </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // Waiting after choosing
-  if (myPlayer?.chosenClubId && room.roundState?.phase === 'choosing') {
+    // Already chose — wait for opponent
     return page(
-      <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', paddingTop: '3rem' }}>
+        <Spinner />
         <p style={{ color: S.accent, fontFamily: S.fontHead, fontSize: '1.2rem' }}>
-          You picked <span style={{ fontWeight: 700 }}>{myPlayer.chosenClubName}</span>
+          You picked <span>{myPlayer?.chosenClubName}</span>
         </p>
-        <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem', marginTop: 8 }}>
-          Waiting for opponent…
+        <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem' }}>
+          Waiting for opponent to choose…
         </p>
       </div>
     );
   }
 
-  // ── COUNTDOWN ──────────────────────────────────────────────────────────────
-  if (showCountdown && room.roundState?.clubA && room.roundState?.clubB) {
+  // ── COUNTDOWN ────────────────────────────────────────────────────────────
+  if (room.status === 'countdown' && showCountdown && room.roundState?.clubA && room.roundState?.clubB) {
     return (
       <CountdownOverlay
         clubA={room.roundState.clubA}
@@ -243,8 +348,8 @@ export default function GamePage() {
     );
   }
 
-  // ── GUESSING ───────────────────────────────────────────────────────────────
-  if ((room.status === 'guessing' || room.roundState?.phase === 'guessing') && !showCountdown && !localResult) {
+  // ── GUESSING ─────────────────────────────────────────────────────────────
+  if (room.status === 'guessing' && !localResult) {
     return page(
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
         <div style={{ fontSize: '0.78rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: S.textDim }}>
@@ -263,7 +368,7 @@ export default function GamePage() {
           />
         )}
 
-        <ClubDisplay clubA={room.roundState?.clubA || null} clubB={room.roundState?.clubB || null} />
+        <ClubDisplay clubA={room.roundState?.clubA ?? null} clubB={room.roundState?.clubB ?? null} />
 
         <CircularTimer secondsLeft={timer.secondsLeft} fraction={timer.fraction} totalSeconds={TIMER_SECONDS} />
 
@@ -272,8 +377,8 @@ export default function GamePage() {
     );
   }
 
-  // ── RESULT (local) ─────────────────────────────────────────────────────────
-  if (localResult && room.roundState) {
+  // ── RESULT (local per-player) ─────────────────────────────────────────────
+  if (localResult) {
     return page(
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <RoundDots currentRound={room.currentRound} totalRounds={totalRounds} results={[...results, localResult]} />
@@ -281,60 +386,55 @@ export default function GamePage() {
           result={localResult}
           guess={lastGuess}
           validAnswers={validAnswers}
-          clubA={room.roundState.clubA}
-          clubB={room.roundState.clubB}
-          onContinue={() => {
-            setLocalResult(null);
-            setLastGuess(null);
-            setValidAnswers([]);
-            setResults(prev => [...prev, localResult]);
-          }}
+          clubA={room.roundState?.clubA ?? null}
+          clubB={room.roundState?.clubB ?? null}
+          onContinue={isHost ? handleContinue : undefined}
         />
+        {!isHost && (
+          <p style={{ textAlign: 'center', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.8rem' }}>
+            Waiting for host to start next round…
+          </p>
+        )}
       </div>
     );
   }
 
-  // ── FINISHED ───────────────────────────────────────────────────────────────
+  // ── FINISHED ─────────────────────────────────────────────────────────────
   if (room.status === 'finished' && myPlayer) {
-    const won = myPlayer.score > (opponent?.score ?? 0);
-    const drew = myPlayer.score === (opponent?.score ?? 0);
+    const myScore  = myPlayer.score;
+    const oppScore = opponent?.score ?? 0;
+    const won  = myScore > oppScore;
+    const drew = myScore === oppScore;
     return page(
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, textAlign: 'center' }}>
         <div style={{ fontSize: '0.78rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: S.textDim }}>
           Game Over
         </div>
-
         <div>
           <span style={{ fontFamily: S.fontHead, fontSize: 'clamp(3.5rem, 12vw, 5rem)', color: S.accent, lineHeight: 1 }}>
-            {myPlayer.score}
+            {myScore}
           </span>
-          <span style={{ fontFamily: S.fontHead, fontSize: '1.5rem', color: S.textDim }}>
-            {' '}– {opponent?.score ?? 0}
-          </span>
+          <span style={{ fontFamily: S.fontHead, fontSize: '1.5rem', color: S.textDim }}> – {oppScore}</span>
         </div>
-
         <p style={{ fontFamily: S.fontBody, color: S.textDim, fontSize: '1rem' }}>
           {won ? '🏆 You win!' : drew ? "It's a draw!" : 'You lost!'}
         </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              background: S.accent, color: '#000', fontFamily: S.fontHead,
-              fontSize: '1.1rem', padding: '15px 0', borderRadius: S.radius,
-              border: 'none', cursor: 'pointer', width: '100%',
-              boxShadow: `0 0 24px ${S.accentGlow}`,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-          >
-            Back to Home
-          </button>
-        </div>
+        <button onClick={() => navigate('/')}
+          style={{ background: S.accent, color: '#000', fontFamily: S.fontHead, fontSize: '1.1rem', padding: '15px 0', borderRadius: S.radius, border: 'none', cursor: 'pointer', width: '100%', boxShadow: `0 0 24px ${S.accentGlow}` }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          Back to Home
+        </button>
       </div>
     );
   }
 
-  return null;
+  // Transitional states (e.g. countdown before timer fires) — show spinner
+  return (
+    <div style={{ minHeight: '100vh', background: S.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <Spinner />
+      <p style={{ color: S.textDim, fontFamily: S.fontBody, fontSize: '0.9rem' }}>Starting game…</p>
+    </div>
+  );
 }
