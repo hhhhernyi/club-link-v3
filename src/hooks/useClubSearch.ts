@@ -44,12 +44,24 @@ export function useClubSearch() {
     try {
       const { data, error } = await supabase.rpc('get_random_club');
       if (error) throw error;
-      return data;
+      return (Array.isArray(data) ? data[0] : data) ?? null;
     } catch (err) {
       console.error('Random club error:', err);
       return null;
     }
   }, []);
 
-  return { clubs, loading, searchClubs, getAllClubs, getRandomClub };
+  /** Returns a random club guaranteed to share at least one player with chosenClubId. */
+  const getCompatibleClub = useCallback(async (chosenClubId: number): Promise<Club | null> => {
+    try {
+      const { data, error } = await supabase.rpc('get_compatible_club', { chosen_club_id: chosenClubId });
+      if (error) throw error;
+      return (Array.isArray(data) ? data[0] : data) ?? null;
+    } catch (err) {
+      console.error('Compatible club error:', err);
+      return null;
+    }
+  }, []);
+
+  return { clubs, loading, searchClubs, getAllClubs, getRandomClub, getCompatibleClub };
 }

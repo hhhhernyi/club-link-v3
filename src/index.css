@@ -1,30 +1,48 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors */
-  --color-pitch:       #0f0f1a;
-  --color-pitch-light: #1a1a2e;
-  --color-card:        #16213e;
-  --color-card-hover:  #1c2a4a;
+  /* Colors — dark mode defaults, matching :root vars exactly */
+  --color-pitch:             #0a0a0f;
+  --color-pitch-light:       #131320;
+  --color-card:              #131320;
+  --color-card-hover:        #1c1c2e;
 
-  --color-accent:      #00ffaa;
-  --color-accent-dim:  #00cc88;
-  --color-danger:      #ff4757;
-  --color-danger-dim:  #cc3945;
-  --color-warning:     #ffa502;
-  --color-gold:        #f5c542;
+  --color-bg-primary:        #0a0a0f;
+  --color-bg-secondary:      #131320;
+  --color-bg-card:           #131320;
+  --color-bg-card-hover:     #1c1c2e;
+  --color-bg-input:          #131320;
+  --color-bg-result-correct: rgba(61, 255, 160, 0.1);
+  --color-bg-result-wrong:   rgba(255, 77, 109, 0.1);
 
-  --color-ink:         #e8e8f0;
-  --color-ink-dim:     #8888aa;
-  --color-ink-faint:   #555577;
-  --color-rail:        #2a2a44;
+  --color-text-primary:      #f0f0f8;
+  --color-text-secondary:    #8888aa;
+  --color-text-muted:        #8888aa;
+
+  --color-border:            #2a2a40;
+  --color-border-accent:     rgba(61, 255, 160, 0.3);
+  --color-border-danger:     rgba(255, 77, 109, 0.3);
+
+  --color-accent:            #3dffa0;
+  --color-accent-dim:        #1a8c57;
+  --color-accent-glow:       rgba(61, 255, 160, 0.2);
+  --color-danger:            #ff4d6d;
+  --color-danger-dim:        #cc2244;
+  --color-danger-glow:       rgba(255, 77, 109, 0.15);
+  --color-warning:           #ffb347;
+  --color-gold:              #f5c542;
+
+  --color-ink:               #f0f0f8;
+  --color-ink-dim:           #8888aa;
+  --color-ink-faint:         #555577;
+  --color-rail:              #2a2a40;
 
   /* Fonts */
-  --font-display: "Outfit", sans-serif;
+  --font-display: "Dela Gothic One", sans-serif;
   --font-body:    "DM Sans", sans-serif;
   --font-mono:    "JetBrains Mono", monospace;
 
-  /* Animations — reference keyframes defined below */
+  /* Animations */
   --animate-fade-in:    fade-in 0.3s ease-out;
   --animate-slide-up:   slide-up 0.4s ease-out;
   --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
@@ -36,6 +54,10 @@
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(20px); }
@@ -54,12 +76,88 @@
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+@keyframes timer-ring {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 283; }
+}
+
+/* V1 theme variables — used by inline styles in HomePage & SinglePlayerPage */
+:root {
+  --bg:              #0a0a0f;
+  --surface:         #131320;
+  --surface2:        #1c1c2e;
+  --border:          #2a2a40;
+  --accent:          #3dffa0;
+  --accent-dim:      #1a8c57;
+  --danger:          #ff4d6d;
+  --warning:         #ffb347;
+  --text:            #f0f0f8;
+  --text-dim:        #8888aa;
+  --accent-bg:       rgba(61,255,160,0.1);
+  --accent-bg2:      rgba(61,255,160,0.15);
+  --accent-border:   rgba(61,255,160,0.3);
+  --accent-glow:     rgba(61,255,160,0.2);
+  --accent-glow-lg:  rgba(61,255,160,0.25);
+  --accent-glow-xl:  rgba(61,255,160,0.4);
+  --danger-bg:       rgba(255,77,109,0.1);
+}
+
+[data-theme="light"] {
+  /* Inline-style vars (used by HomePage, SinglePlayerPage, new pages) */
+  --bg:              #f4f4f0;
+  --surface:         #ffffff;
+  --surface2:        #e8e8e4;
+  --border:          #d0d0c8;
+  --accent:          #1a7a4a;
+  --accent-dim:      #2ea864;
+  --danger:          #cc2244;
+  --warning:         #d4820a;
+  --text:            #1a1a20;
+  --text-dim:        #666677;
+  --accent-bg:       rgba(26,122,74,0.12);
+  --accent-bg2:      rgba(26,122,74,0.18);
+  --accent-border:   rgba(26,122,74,0.3);
+  --accent-glow:     rgba(26,122,74,0.15);
+  --accent-glow-lg:  rgba(26,122,74,0.2);
+  --accent-glow-xl:  rgba(26,122,74,0.35);
+  --danger-bg:       rgba(204,34,68,0.1);
+
+  /* Tailwind --color-xxx vars (used by GamePage components) */
+  --color-bg-primary:        #f4f4f0;
+  --color-bg-secondary:      #ffffff;
+  --color-bg-card:           #ffffff;
+  --color-bg-card-hover:     #e8e8e4;
+  --color-bg-input:          #ffffff;
+  --color-bg-result-correct: rgba(26, 122, 74, 0.12);
+  --color-bg-result-wrong:   rgba(204, 34, 68, 0.1);
+  --color-text-primary:      #1a1a20;
+  --color-text-secondary:    #666677;
+  --color-text-muted:        #666677;
+  --color-border:            #d0d0c8;
+  --color-border-accent:     rgba(26, 122, 74, 0.3);
+  --color-border-danger:     rgba(204, 34, 68, 0.3);
+  --color-accent:            #1a7a4a;
+  --color-accent-dim:        #2ea864;
+  --color-accent-glow:       rgba(26, 122, 74, 0.15);
+  --color-danger:            #cc2244;
+  --color-danger-dim:        #aa1833;
+  --color-danger-glow:       rgba(204, 34, 68, 0.1);
+  --color-warning:           #d4820a;
+  --color-ink:               #1a1a20;
+  --color-ink-dim:           #666677;
+  --color-ink-faint:         #999988;
+  --color-rail:              #d0d0c8;
+  --color-pitch:             #f4f4f0;
+  --color-pitch-light:       #ffffff;
+  --color-card:              #ffffff;
+  --color-card-hover:        #e8e8e4;
+}
 
 /* Base reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  background-color: var(--color-pitch);
+  background-color: var(--bg);
   color: var(--color-ink);
   font-family: var(--font-body);
   min-height: 100vh;

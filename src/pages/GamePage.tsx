@@ -157,18 +157,20 @@ export default function GamePage() {
   const totalRounds = room.maxRounds;
 
   return (
-    <div className="min-h-screen bg-bg-primary px-4 py-6">
+    <div className="min-h-screen bg-bg-primary px-4 py-6 flex flex-col items-center">
       {/* Back */}
+      <div className="w-full max-w-lg">
       <button
         onClick={() => navigate('/')}
         className="text-text-secondary hover:text-text-primary text-sm font-body transition-colors mb-6"
       >
         ← Back
       </button>
+      </div>
 
       {/* WAITING */}
       {room.status === 'waiting' && (
-        <div className="max-w-md mx-auto text-center animate-fade-in">
+        <div className="w-full max-w-md text-center animate-fade-in">
           <h2 className="font-display font-bold text-2xl text-text-primary mb-4">
             Waiting for players...
           </h2>
@@ -201,7 +203,7 @@ export default function GamePage() {
       {/* CHOOSING */}
       {(room.status === 'choosing' || room.roundState?.phase === 'choosing') &&
         myPlayer && !myPlayer.chosenClubId && (
-        <div className="max-w-lg mx-auto animate-fade-in">
+        <div className="w-full max-w-lg animate-fade-in">
           <h1 className="font-display font-black text-3xl text-text-primary mb-2">
             Round {room.currentRound} – Pick your club
           </h1>
@@ -218,7 +220,7 @@ export default function GamePage() {
       )}
 
       {myPlayer?.chosenClubId && room.roundState?.phase === 'choosing' && (
-        <div className="max-w-md mx-auto text-center animate-fade-in">
+        <div className="w-full max-w-md text-center animate-fade-in">
           <p className="text-accent font-display text-lg">
             You picked <span className="font-bold">{myPlayer.chosenClubName}</span>
           </p>
@@ -238,7 +240,7 @@ export default function GamePage() {
       {/* GUESSING */}
       {(room.status === 'guessing' || room.roundState?.phase === 'guessing') &&
         !showCountdown && !localResult && (
-        <div className="max-w-lg mx-auto flex flex-col items-center gap-6 animate-fade-in">
+        <div className="w-full max-w-lg flex flex-col items-center gap-6 animate-fade-in">
           <div className="text-text-secondary text-sm font-display uppercase tracking-wider">
             Round {room.currentRound} of {totalRounds}
           </div>
@@ -281,7 +283,7 @@ export default function GamePage() {
 
       {/* RESULT (local) */}
       {localResult && room.roundState && (
-        <div className="max-w-lg mx-auto animate-fade-in">
+        <div className="w-full max-w-lg animate-fade-in">
           <div className="mb-6">
             <RoundDots
               currentRound={room.currentRound}
@@ -307,7 +309,7 @@ export default function GamePage() {
 
       {/* FINISHED */}
       {room.status === 'finished' && myPlayer && (
-        <div className="max-w-lg mx-auto text-center animate-fade-in">
+        <div className="w-full max-w-lg text-center animate-fade-in">
           <div className="text-text-secondary text-sm font-display uppercase tracking-wider mb-4">
             Game Over
           </div>
