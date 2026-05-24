@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, updateDoc, setDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -203,6 +203,46 @@ export default function GamePage() {
       if (chooseTimeoutRef.current !== null) clearTimeout(chooseTimeoutRef.current);
     };
   }, []);
+
+  // ── Presence heartbeat (multiplayer only) ────────────────────────────────
+  // Writes lastSeen every 15s so the opponent can detect if we go offline.
+  useEffect(() => {
+    if (!roomId || !uid) return;
+    const activeStatuses = new Set(['choosing', 'countdown', 'guessing']);
+    const write = () => {
+      const r = roomRef.current;
+      if (!r || r.mode === 'single' || !activeStatuses.has(r.status)) return;
+      updateDoc(doc(db, 'game_rooms', roomId), {
+        [`players.${uid}.lastSeen`]: serverTimestamp(),
+      }).catch(() => {});
+    };
+    write();
+    const id = setInterval(write, 15_000);
+    return () => clearInterval(id);
+  }, [roomId, uid]);
+
+  // ── Stale-opponent detection (multiplayer only) ───────────────────────────
+  // Both players check every 10s; whichever detects the stale heartbeat first wins.
+  useEffect(() => {
+    if (!roomId || !uid) return;
+    const activeStatuses = new Set(['choosing', 'countdown', 'guessing']);
+    const check = async () => {
+      const r = roomRef.current;
+      if (!r || r.mode === 'single' || !activeStatuses.has(r.status)) return;
+      const opponentUid = Object.keys(r.players).find(k => k !== uid);
+      if (!opponentUid) return;
+      const lastSeen = r.players[opponentUid]?.lastSeen;
+      if (!lastSeen?.toMillis) return; // no heartbeat yet — too early to judge
+      if (Date.now() - lastSeen.toMillis() > 30_000) {
+        await updateDoc(doc(db, 'game_rooms', roomId), {
+          status: 'disconnected',
+          disconnectedPlayerName: r.players[opponentUid].displayName,
+        }).catch(() => {});
+      }
+    };
+    const id = setInterval(check, 10_000);
+    return () => clearInterval(id);
+  }, [roomId, uid]);
 
   // ── HOST: process first submission (guessing → second_chance | result) ────
   useEffect(() => {

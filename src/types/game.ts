@@ -8,6 +8,7 @@ export interface PlayerState {
   chosenClubName: string | null;
   currentGuess: string | null;
   hasSubmitted: boolean;
+  lastSeen?: Timestamp | null;
 }
 
 export interface ClubInfo {
