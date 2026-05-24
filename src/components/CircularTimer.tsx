@@ -5,46 +5,31 @@ interface CircularTimerProps {
 }
 
 export default function CircularTimer({ secondsLeft, fraction }: CircularTimerProps) {
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - fraction);
-  const displaySeconds = Math.ceil(secondsLeft);
-  const isWarning = secondsLeft <= 3;
+  const r = 40;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - fraction);
+  const display = Math.ceil(secondsLeft);
+  const warn = secondsLeft <= 3;
 
   return (
-    <div className="relative w-24 h-24 mx-auto">
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-        {/* Background circle */}
+    <div style={{ position: 'relative', width: 96, height: 96 }}>
+      <svg style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }} viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--border)" strokeWidth="5" />
         <circle
-          cx="50"
-          cy="50"
-          r={radius}
-          fill="none"
-          stroke="var(--color-border)"
-          strokeWidth="4"
-        />
-        {/* Progress circle */}
-        <circle
-          cx="50"
-          cy="50"
-          r={radius}
-          fill="none"
-          stroke={isWarning ? 'var(--color-danger)' : 'var(--color-accent)'}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-[stroke] duration-300"
+          cx="50" cy="50" r={r} fill="none"
+          stroke={warn ? 'var(--danger)' : 'var(--accent)'}
+          strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.25s linear, stroke 0.3s' }}
         />
       </svg>
-      {/* Number in center */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span
-          className={`font-mono text-3xl font-bold ${
-            isWarning ? 'text-danger' : 'text-accent'
-          }`}
-        >
-          {displaySeconds}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{
+          fontFamily: "'Dela Gothic One', system-ui, sans-serif",
+          fontSize: '1.8rem',
+          color: warn ? 'var(--danger)' : 'var(--text)',
+        }}>
+          {display}
         </span>
       </div>
     </div>

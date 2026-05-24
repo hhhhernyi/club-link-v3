@@ -1,3 +1,12 @@
+const S = {
+  text:     'var(--text)',
+  textDim:  'var(--text-dim)',
+  accent:   'var(--accent)',
+  border:   'var(--border)',
+  fontHead: "'Dela Gothic One', system-ui, sans-serif",
+  fontBody: "'DM Sans', system-ui, sans-serif",
+};
+
 interface ScoreBoardProps {
   playerName: string;
   playerScore: number;
@@ -7,27 +16,21 @@ interface ScoreBoardProps {
   totalRounds: number;
 }
 
-export default function ScoreBoard({
-  playerName,
-  playerScore,
-  opponentName,
-  opponentScore,
-  currentRound,
-  totalRounds,
-}: ScoreBoardProps) {
+export default function ScoreBoard({ playerName, playerScore, opponentName, opponentScore }: ScoreBoardProps) {
   return (
-    <div className="flex items-center justify-center gap-8 text-center">
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, textAlign: 'center' }}>
       <div>
-        <div className="text-text-secondary text-xs uppercase tracking-wider font-display">{playerName}</div>
-        <div className="text-accent font-display font-black text-3xl">{playerScore}</div>
+        <div style={{ fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: S.textDim, fontFamily: S.fontBody, marginBottom: 4 }}>
+          {playerName}
+        </div>
+        <div style={{ fontFamily: S.fontHead, fontSize: '2.2rem', color: S.accent }}>{playerScore}</div>
       </div>
+      <div style={{ color: S.textDim, fontFamily: S.fontHead, fontSize: '1.2rem' }}>vs</div>
       <div>
-        <div className="text-text-secondary text-xs uppercase tracking-wider font-display">{opponentName}</div>
-        <div className="text-text-primary font-display font-black text-3xl">{opponentScore}</div>
-      </div>
-      <div>
-        <div className="text-text-secondary text-xs uppercase tracking-wider font-display">Round</div>
-        <div className="text-text-primary font-display font-bold text-xl">{currentRound}/{totalRounds}</div>
+        <div style={{ fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: S.textDim, fontFamily: S.fontBody, marginBottom: 4 }}>
+          {opponentName}
+        </div>
+        <div style={{ fontFamily: S.fontHead, fontSize: '2.2rem', color: S.text }}>{opponentScore}</div>
       </div>
     </div>
   );

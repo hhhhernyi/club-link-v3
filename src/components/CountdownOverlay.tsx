@@ -13,34 +13,41 @@ export default function CountdownOverlay({ clubA, clubB, onComplete }: Countdown
 
   useEffect(() => {
     if (count <= 0) {
-      const timer = setTimeout(onComplete, 600);
-      return () => clearTimeout(timer);
+      const t = setTimeout(onComplete, 600);
+      return () => clearTimeout(t);
     }
-
-    const timer = setTimeout(() => setCount(count - 1), 1000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setCount(c => c - 1), 1000);
+    return () => clearTimeout(t);
   }, [count, onComplete]);
 
   return (
-    <div className="fixed inset-0 bg-bg-primary/95 flex flex-col items-center justify-center z-50 animate-fade-in">
-      {/* Club display */}
-      <div className="mb-12">
+    <div style={{
+      position: 'fixed', inset: 0, background: 'var(--bg)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      zIndex: 50, animation: 'fadeIn 0.3s ease',
+    }}>
+      <div style={{ marginBottom: 48 }}>
         <ClubDisplay clubA={clubA} clubB={clubB} size="lg" />
       </div>
-
-      {/* Countdown number */}
-      <div className="flex flex-col items-center gap-3">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
         <span
           key={count}
-          className={`font-display font-black text-7xl animate-countdown ${
-            count > 0 ? 'text-accent' : 'text-accent'
-          }`}
+          style={{
+            fontFamily: "'Dela Gothic One', system-ui, sans-serif",
+            fontSize: '5rem', lineHeight: 1, color: 'var(--accent)',
+            animation: 'countdown-pop 0.5s ease-out',
+            display: 'block',
+          }}
         >
           {count > 0 ? count : 'GO!'}
         </span>
         {count > 0 && (
-          <span className="text-text-secondary font-body text-sm uppercase tracking-widest">
-            Get ready...
+          <span style={{
+            color: 'var(--text-dim)', fontSize: '0.85rem',
+            letterSpacing: '0.15em', textTransform: 'uppercase',
+          }}>
+            Get ready…
           </span>
         )}
       </div>

@@ -115,9 +115,28 @@ export default function SinglePlayerPage() {
   const [history, setHistory]       = useState<RoundHistory[]>([]);
   const [results, setResults]       = useState<(ResultType | null)[]>(Array(TOTAL_ROUNDS).fill(null));
 
+  const [logosReady, setLogosReady] = useState(false);
+
   const timer = useTimer({ duration: TIMER_SECONDS, onComplete: () => handleTimeout() });
 
   useEffect(() => { getAllClubs(); }, [getAllClubs]);
+
+  // Preload all club logos so the list only appears once every image has
+  // either loaded or failed — no layout jumps with missing crests.
+  useEffect(() => {
+    if (clubs.length === 0) { setLogosReady(false); return; }
+    const sources = clubs
+      .map(c => getCrestUrl(c.name, c.logo_url))
+      .filter((s): s is string => !!s);
+    if (sources.length === 0) { setLogosReady(true); return; }
+    setLogosReady(false);
+    let remaining = sources.length;
+    sources.forEach(src => {
+      const img = new Image();
+      img.onload = img.onerror = () => { if (--remaining === 0) setLogosReady(true); };
+      img.src = src;
+    });
+  }, [clubs]);
 
   const handleClubSelect = useCallback(async (club: { id: number; name: string; logo_url: string | null }) => {
     setClubA({ id: club.id, name: club.name, logo_url: club.logo_url });
@@ -236,9 +255,25 @@ export default function SinglePlayerPage() {
 
         {/* Club list — scrolls */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', flex: 1 }}>
-          {clubsLoading && <div style={{ textAlign: 'center', color: S.textDim, padding: '3rem 0', fontSize: '0.9rem' }}>Loading clubs…</div>}
-          {!clubsLoading && clubs.length === 0 && <div style={{ textAlign: 'center', color: S.textDim, padding: '3rem 0', fontSize: '0.9rem' }}>No clubs found</div>}
-          {clubs.map(club => {
+          {/* Spinner while DB fetch OR logo preload is in progress */}
+          {(clubsLoading || (clubs.length > 0 && !logosReady)) && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '4rem 0' }}>
+              <svg viewBox="0 0 48 48" style={{ width: 48, height: 48 }}>
+                <circle cx="24" cy="24" r="20" fill="none" stroke={S.border} strokeWidth="3" />
+                <circle cx="24" cy="24" r="20" fill="none" stroke={S.accent} strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 20 * 0.25} ${2 * Math.PI * 20 * 0.75}`}
+                  style={{ transformOrigin: '24px 24px', animation: 'spin 1s linear infinite' }} />
+              </svg>
+              <span style={{ color: S.textDim, fontSize: '0.9rem', fontFamily: S.fontBody }}>
+                {clubsLoading ? 'Fetching clubs…' : 'Loading logos…'}
+              </span>
+            </div>
+          )}
+          {!clubsLoading && logosReady && clubs.length === 0 && (
+            <div style={{ textAlign: 'center', color: S.textDim, padding: '3rem 0', fontSize: '0.9rem' }}>No clubs found</div>
+          )}
+          {!clubsLoading && logosReady && clubs.map(club => {
             const logoSrc = getCrestUrl(club.name, club.logo_url);
             return (
               <button key={club.id}

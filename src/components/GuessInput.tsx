@@ -1,5 +1,15 @@
 import { useState, useCallback } from 'react';
 
+const S = {
+  surface: 'var(--surface)',
+  border:  'var(--border)',
+  accent:  'var(--accent)',
+  text:    'var(--text)',
+  textDim: 'var(--text-dim)',
+  fontBody: "'DM Sans', system-ui, sans-serif",
+  radius:  '12px',
+};
+
 interface GuessInputProps {
   onSubmit: (guess: string) => void;
   onSkip?: () => void;
@@ -11,39 +21,45 @@ export default function GuessInput({ onSubmit, onSkip, disabled }: GuessInputPro
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
-    if (trimmed && !disabled) {
-      onSubmit(trimmed);
-      setValue('');
-    }
+    if (trimmed && !disabled) { onSubmit(trimmed); setValue(''); }
   }, [value, disabled, onSubmit]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSubmit();
-    }
-  };
-
   return (
-    <div className="w-full max-w-lg mx-auto">
-      <p className="text-center text-text-primary font-display font-semibold text-lg mb-4">
+    <div style={{ width: '100%' }}>
+      <p style={{ textAlign: 'center', color: S.textDim, fontFamily: S.fontBody, fontSize: '0.95rem', marginBottom: 16 }}>
         Name a player who played for both clubs
       </p>
 
-      <div className="flex gap-3">
+      <div style={{ display: 'flex', gap: 10 }}>
         <input
           type="text"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Player name..."
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          placeholder="Player name…"
           disabled={disabled}
-          className="flex-1 px-4 py-3.5 rounded-xl border border-border bg-bg-input text-text-primary font-body text-base placeholder:text-text-muted focus:border-accent transition-colors disabled:opacity-50"
           autoFocus
+          style={{
+            flex: 1, padding: '14px 16px', borderRadius: S.radius,
+            border: `2px solid ${S.border}`, background: S.surface,
+            color: S.text, fontFamily: S.fontBody, fontSize: '1rem',
+            transition: 'border-color 0.2s', outline: 'none',
+            opacity: disabled ? 0.5 : 1,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = S.accent)}
+          onBlur={e => (e.currentTarget.style.borderColor = S.border)}
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
-          className="px-6 py-3.5 rounded-xl bg-accent text-bg-primary font-display font-bold text-base hover:bg-accent-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background: S.accent, color: '#000',
+            fontFamily: S.fontBody, fontWeight: 700,
+            fontSize: '0.9rem', padding: '14px 20px',
+            borderRadius: S.radius, border: 'none', flexShrink: 0,
+            cursor: disabled || !value.trim() ? 'not-allowed' : 'pointer',
+            opacity: disabled || !value.trim() ? 0.5 : 1,
+          }}
         >
           GO
         </button>
@@ -53,7 +69,17 @@ export default function GuessInput({ onSubmit, onSkip, disabled }: GuessInputPro
         <button
           onClick={onSkip}
           disabled={disabled}
-          className="block mx-auto mt-4 text-text-secondary hover:text-text-primary text-sm font-body transition-colors border border-border/50 rounded-lg px-6 py-2 hover:border-border disabled:opacity-50"
+          style={{
+            display: 'block', margin: '12px auto 0',
+            background: 'transparent', border: `1px solid ${S.border}`,
+            color: S.textDim, fontFamily: S.fontBody, fontSize: '0.85rem',
+            padding: '8px 24px', borderRadius: S.radius,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.5 : 1,
+            transition: 'border-color 0.2s, color 0.2s',
+          }}
+          onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = S.textDim; e.currentTarget.style.color = S.text; } }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = S.border; e.currentTarget.style.color = S.textDim; }}
         >
           Skip
         </button>
