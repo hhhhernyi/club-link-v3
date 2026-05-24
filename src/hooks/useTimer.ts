@@ -10,6 +10,8 @@ export function useTimer({ duration, onComplete, autoStart = false }: UseTimerOp
   const [secondsLeft, setSecondsLeft] = useState(duration);
   const [fraction, setFraction] = useState(1);
   const [isRunning, setIsRunning] = useState(autoStart);
+  // Incrementing this forces the RAF loop to restart even when isRunning stays true
+  const [restartKey, setRestartKey] = useState(0);
   const startTimeRef = useRef<number>(0);
   const rafRef = useRef<number>(0);
   const onCompleteRef = useRef(onComplete);
@@ -31,6 +33,16 @@ export function useTimer({ duration, onComplete, autoStart = false }: UseTimerOp
     setFraction(1);
     setIsRunning(false);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  }, [duration]);
+
+  // Restarts the timer even if it was already running — safe to call at any time
+  const restart = useCallback((newDuration?: number) => {
+    const d = newDuration ?? duration;
+    setSecondsLeft(d);
+    setFraction(1);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    setRestartKey(k => k + 1); // forces the effect to re-run regardless of isRunning state
+    setIsRunning(true);
   }, [duration]);
 
   useEffect(() => {
@@ -60,7 +72,7 @@ export function useTimer({ duration, onComplete, autoStart = false }: UseTimerOp
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [isRunning, duration]);
+  }, [isRunning, duration, restartKey]);
 
-  return { secondsLeft, fraction, isRunning, start, stop, reset };
+  return { secondsLeft, fraction, isRunning, start, stop, reset, restart };
 }

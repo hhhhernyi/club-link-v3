@@ -284,11 +284,10 @@ export default function GamePage() {
       return;
     }
     if (roundPhase === 'guessing') {
-      timer.reset(TIMER_SECONDS);
-      timer.start();
+      timer.restart(TIMER_SECONDS);
     } else if (roundPhase === 'second_chance') {
       const amISecond = room.roundState?.firstSubmitter !== uid;
-      if (amISecond) { timer.reset(TIMER_SECONDS); timer.start(); }
+      if (amISecond) { timer.restart(TIMER_SECONDS); }
       else timer.stop();
     } else {
       timer.stop();
@@ -562,7 +561,6 @@ export default function GamePage() {
     if (roundPhase === 'result') {
       const winner     = rs?.roundWinner;
       const iWon       = winner === uid;
-      const theyWon    = winner !== null && winner !== undefined && winner !== uid;
       const noWinner   = winner === null || winner === undefined;
       const correctAns = rs?.correctAnswer;
       const validAns   = rs?.validAnswers ?? [];
@@ -572,15 +570,15 @@ export default function GamePage() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
           <RoundDots currentRound={room.currentRound} totalRounds={totalRounds} results={displayResults} />
 
-          {/* Result card */}
+          {/* Result card — green if anyone answered correctly, neutral if no winner */}
           <div style={{
             width: '100%', padding: '24px 28px', borderRadius: S.radiusLg, textAlign: 'center',
-            background: iWon ? S.accentBg : (theyWon ? S.dangerBg : S.surface),
-            border: `1px solid ${iWon ? S.accent : (theyWon ? S.danger : S.border)}`,
+            background: noWinner ? S.surface : S.accentBg,
+            border: `1px solid ${noWinner ? S.border : S.accent}`,
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            <span style={{ fontSize: '2.5rem' }}>{iWon ? '✓' : (noWinner ? '—' : '✗')}</span>
-            <span style={{ fontFamily: S.fontHead, fontSize: '1.6rem', color: iWon ? S.accent : (noWinner ? S.textDim : S.danger) }}>
+            <span style={{ fontSize: '2.5rem' }}>{noWinner ? '—' : '✓'}</span>
+            <span style={{ fontFamily: S.fontHead, fontSize: '1.6rem', color: noWinner ? S.textDim : S.accent }}>
               {noWinner ? 'No correct answer!' : `${winnerName} answered correctly!`}
             </span>
             {correctAns && (
