@@ -20,16 +20,19 @@ const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_KEY as string;
 
 export default function ContactPage() {
   const navigate = useNavigate();
-  const [subject,  setSubject]  = useState('');
-  const [message,  setMessage]  = useState('');
-  const [sending,  setSending]  = useState(false);
-  const [sent,     setSent]     = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
+  const [email,   setEmail]   = useState('');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent,    setSent]    = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
+
+  const canSend = message.trim().length > 0 && !sending;
 
   const handleSend = async () => {
-    if (!message.trim() || sending) return;
+    if (!canSend) return;
     if (!WEB3FORMS_KEY) {
-      setError('Contact form not configured (missing API key).');
+      setError('Contact form not configured (missing API key). Try restarting the dev server.');
       return;
     }
     setSending(true);
@@ -43,6 +46,7 @@ export default function ContactPage() {
           subject:    subject.trim() || 'Club Link Feedback',
           message:    message.trim(),
           name:       'Club Link User',
+          email:      email.trim() || undefined,
           botcheck:   false,
         }),
       });
@@ -71,6 +75,15 @@ export default function ContactPage() {
     outline: 'none',
     boxSizing: 'border-box',
     transition: '150ms',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: S.fontBody,
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    color: S.textDim,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
   };
 
   // ── Success screen ────────────────────────────────────────────────────────
@@ -134,10 +147,24 @@ export default function ContactPage() {
         </div>
 
         <div style={{ background: S.surface, border: `1px solid ${S.border}`, borderRadius: S.radiusLg, padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Email */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: S.fontBody, fontSize: '0.8rem', fontWeight: 600, color: S.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Subject (optional)
-            </label>
+            <label style={labelStyle}>Your Email (optional)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="so I can reply to you"
+              style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = S.accent)}
+              onBlur={e => (e.currentTarget.style.borderColor = S.border)}
+            />
+          </div>
+
+          {/* Subject */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelStyle}>Subject (optional)</label>
             <input
               type="text"
               value={subject}
@@ -149,10 +176,9 @@ export default function ContactPage() {
             />
           </div>
 
+          {/* Message */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: S.fontBody, fontSize: '0.8rem', fontWeight: 600, color: S.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Message
-            </label>
+            <label style={labelStyle}>Message</label>
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}
@@ -170,17 +196,17 @@ export default function ContactPage() {
 
           <button
             onClick={handleSend}
-            disabled={!message.trim() || sending}
+            disabled={!canSend}
             style={{
-              background: message.trim() && !sending ? S.accent : S.border,
-              color: message.trim() && !sending ? '#000' : S.textDim,
+              background: canSend ? S.accent : S.border,
+              color: canSend ? '#000' : S.textDim,
               fontFamily: S.fontHead, fontSize: '1rem',
               padding: '14px 0', borderRadius: S.radius,
-              border: 'none', cursor: message.trim() && !sending ? 'pointer' : 'not-allowed',
-              boxShadow: message.trim() && !sending ? `0 0 24px ${S.accentGlow}` : 'none',
+              border: 'none', cursor: canSend ? 'pointer' : 'not-allowed',
+              boxShadow: canSend ? `0 0 24px ${S.accentGlow}` : 'none',
               transition: '200ms', width: '100%',
             }}
-            onMouseEnter={e => { if (message.trim() && !sending) e.currentTarget.style.opacity = '0.85'; }}
+            onMouseEnter={e => { if (canSend) e.currentTarget.style.opacity = '0.85'; }}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >
             {sending ? 'Sending…' : 'Send Message'}
