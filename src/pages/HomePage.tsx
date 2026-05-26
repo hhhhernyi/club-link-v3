@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, setDoc, increment } from 'firebase/firestore';
+import { doc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 const S = {
@@ -19,24 +19,8 @@ const S = {
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [visits, setVisits] = useState<number | null>(null);
-  const [gamesPlayed, setGamesPlayed] = useState<number | null>(null);
-
   useEffect(() => {
-    const statsRef = doc(db, 'app_stats', 'global');
-
-    // Atomically increment visit count (creates the doc if it doesn't exist)
-    setDoc(statsRef, { visits: increment(1) }, { merge: true }).catch(console.error);
-
-    // Live-subscribe so both counters update in real time
-    const unsub = onSnapshot(statsRef, (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        setVisits(d.visits ?? 0);
-        setGamesPlayed(d.gamesPlayed ?? 0);
-      }
-    });
-    return unsub;
+    setDoc(doc(db, 'app_stats', 'global'), { visits: increment(1) }, { merge: true }).catch(console.error);
   }, []);
 
   return (
@@ -146,19 +130,6 @@ export default function HomePage() {
         </ul>
       </div>
 
-      {/* Stats */}
-      {visits !== null && (
-        <div style={{ display: 'flex', gap: 32, justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.accent }}>{visits ?? '—'}</div>
-            <div style={{ fontFamily: S.fontBody, fontSize: '0.75rem', color: S.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Visits</div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: S.fontHead, fontSize: '1.8rem', color: S.accent }}>{gamesPlayed ?? '—'}</div>
-            <div style={{ fontFamily: S.fontBody, fontSize: '0.75rem', color: S.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Games played</div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

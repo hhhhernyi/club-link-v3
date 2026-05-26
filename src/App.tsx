@@ -7,12 +7,16 @@ import GamePage from './pages/GamePage';
 import ContactPage from './pages/ContactPage';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
+import { usePresence } from './hooks/usePresence';
+import { StatsBar } from './components/StatsBar';
 
 export default function App() {
   const { theme, toggle } = useTheme();
+  usePresence();
   return (
     <BrowserRouter>
       <ThemeToggle theme={theme} onToggle={toggle} />
+      <StatsBar />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/single" element={<SinglePlayerPage />} />
