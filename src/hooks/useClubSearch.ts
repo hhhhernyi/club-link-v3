@@ -2,6 +2,29 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../config/supabase';
 import type { Club } from '../types/database';
 
+const CLUBS_CACHE_KEY = 'club_link_clubs_v1';
+const CLUBS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function readClubsCache(): Club[] | null {
+  try {
+    const raw = localStorage.getItem(CLUBS_CACHE_KEY);
+    if (!raw) return null;
+    const { ts, clubs } = JSON.parse(raw);
+    if (Date.now() - ts > CLUBS_CACHE_TTL) return null;
+    return clubs;
+  } catch {
+    return null;
+  }
+}
+
+function writeClubsCache(clubs: Club[]) {
+  try {
+    localStorage.setItem(CLUBS_CACHE_KEY, JSON.stringify({ ts: Date.now(), clubs }));
+  } catch {
+    // localStorage full or unavailable — silently ignore
+  }
+}
+
 export function useClubSearch() {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,6 +47,11 @@ export function useClubSearch() {
   }, []);
 
   const getAllClubs = useCallback(async () => {
+    const cached = readClubsCache();
+    if (cached) {
+      setClubs(cached);
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -31,7 +59,9 @@ export function useClubSearch() {
         .select('*')
         .order('name');
       if (error) throw error;
-      setClubs(data || []);
+      const result = data || [];
+      writeClubsCache(result);
+      setClubs(result);
     } catch (err) {
       console.error('Get all clubs error:', err);
       setClubs([]);
